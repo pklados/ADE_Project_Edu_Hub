@@ -98,7 +98,7 @@ const App: React.FC = () => {
 
       {/* Simple Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-sm text-slate-400">
-        &copy; {new Date().getFullYear()} University CS Department Project - Auth System Demo
+        &copy; {new Date().getFullYear()} Uniwa - 2026
       </footer>
     </div>
   );
