@@ -33,8 +33,8 @@ const SignUp: React.FC<SignUpProps> = ({ onSuccess, onNavigate }) => {
           id: Math.random().toString(36).substr(2, 9),
           name,
           email,
-          password, // In a real app, never store plain passwords!
-          createdAt: new Date().toISOString()
+          password, 
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ')
         };
 
         await createUser(newUser);

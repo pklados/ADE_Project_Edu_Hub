@@ -1,9 +1,19 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai: GoogleGenAI | null = null;
+
+if (true) {
+  ai = new GoogleGenAI({ apiKey: "AIzaSyBaBu1gIMr5BwAzb3mshPkfEcg8nXNIgw0" });
+} else {
+  console.warn("VITE_API_KEY is not set. Gemini features will be disabled.");
+}
 
 export const getAIWelcomeMessage = async (name: string): Promise<string> => {
+  if (!ai) {
+    return `Welcome back, ${name}! Ready to ace your classes today?`;
+  }
+  
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

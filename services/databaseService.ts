@@ -1,121 +1,80 @@
-import initSqlJs from 'sql.js';
+const API_BASE = 'http://localhost:5050';
 
-// Initialize SQLite database
-let SQL: any;
-let db: any;
-
-const initDB = async () => {
-  if (!SQL) {
-    SQL = await initSqlJs({
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
-    });
-  }
-
-  // Load database from localStorage if exists
-  const savedDbData = localStorage.getItem('sqlite_db');
-  if (savedDbData) {
-    const dbArray = new Uint8Array(JSON.parse(savedDbData));
-    db = new SQL.Database(dbArray);
-  } else {
-    db = new SQL.Database();
-    // Create tables
-    db.run(`
-      CREATE TABLE users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE,
-        name TEXT,
-        password TEXT,
-        createdAt TEXT
-      )
-    `);
-    db.run(`
-      CREATE TABLE courses (
-        id TEXT PRIMARY KEY,
-        title TEXT,
-        description TEXT,
-        userId TEXT,
-        createdAt TEXT,
-        FOREIGN KEY (userId) REFERENCES users(id)
-      )
-    `);
-  }
-};
-
-// Save database to localStorage
-const saveDB = () => {
-  if (db) {
-    const data = db.export();
-    const buffer = Array.from(data);
-    localStorage.setItem('sqlite_db', JSON.stringify(buffer));
-  }
+// Helper function to convert ISO date to MySQL datetime format
+const formatDateForMySQL = (isoDate: string): string => {
+  return new Date(isoDate).toISOString().slice(0, 19).replace('T', ' ');
 };
 
 // User operations
 export const createUser = async (user: { id: string; email: string; name: string; password: string; createdAt: string }) => {
-  await initDB();
-  const stmt = db.prepare('INSERT INTO users (id, email, name, password, createdAt) VALUES (?, ?, ?, ?, ?)');
-  stmt.run([user.id, user.email, user.name, user.password, user.createdAt]);
-  stmt.free();
-  saveDB();
+  const response = await fetch(`${API_BASE}/api/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...user,
+      createdAt: formatDateForMySQL(user.createdAt),
+    }),
+  });
+  const data = await response.json();
+  console.log('Create user response:', data);
+  if (!response.ok) throw new Error(data.error || 'Failed to create user');
+  
+  // Add four default courses for the new user
+  const defaultCourses = [
+    { id: 'ΕΕΕ.7-3.7', title: 'VLSI Design', description: 'Very Large Scale Integration Design' },
+    { id: 'ΕΕΕ.7-3.2', title: 'Control Systems II', description: 'Advanced control systems and automation' },
+    { id: 'EEE.7-3.1', title: 'Microprocessors', description: 'Microprocessor architecture and design' },
+    { id: 'EEE.7-3.3', title: 'Digital Signal Processing', description: 'Signal processing techniques and applications' },
+  ];
+
+  for (const course of defaultCourses) {
+    await createCourse({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      userId: user.id,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return data;
 };
 
 export const getUserByEmail = async (email: string) => {
-  await initDB();
-  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
-  const result = stmt.getAsObject([email]);
-  stmt.free();
-  return result.id ? result : null;
+  const response = await fetch(`${API_BASE}/api/users/email/${encodeURIComponent(email)}`);
+  if (!response.ok) throw new Error('Failed to fetch user');
+  return response.json();
 };
 
 export const getUserById = async (id: string) => {
-  await initDB();
-  const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
-  const result = stmt.getAsObject([id]);
-  stmt.free();
-  return result.id ? result : null;
+  const response = await fetch(`${API_BASE}/api/users/id/${id}`);
+  if (!response.ok) throw new Error('Failed to fetch user');
+  return response.json();
 };
 
-// Course operations (placeholder)
+// Course operations
 export const getCoursesByUserId = async (userId: string) => {
-  await initDB();
-  const stmt = db.prepare('SELECT * FROM courses WHERE userId = ?');
-  const results = [];
-  while (stmt.step()) {
-    results.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return results;
+  const response = await fetch(`${API_BASE}/api/courses/user/${userId}`);
+  if (!response.ok) throw new Error('Failed to fetch courses');
+  return response.json();
 };
 
 export const createCourse = async (course: { id: string; title: string; description: string; userId: string; createdAt: string }) => {
-  await initDB();
-  const stmt = db.prepare('INSERT INTO courses (id, title, description, userId, createdAt) VALUES (?, ?, ?, ?, ?)');
-  stmt.run([course.id, course.title, course.description, course.userId, course.createdAt]);
-  stmt.free();
-  saveDB();
+  const response = await fetch(`${API_BASE}/api/courses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...course,
+      createdAt: formatDateForMySQL(course.createdAt),
+    }),
+  });
+  if (!response.ok) throw new Error('Failed to create course');
+  return response.json();
 };
 
 // Export database contents for viewing
 export const exportDatabase = async () => {
-  await initDB();
-  const users = [];
-  const stmt = db.prepare('SELECT * FROM users');
-  while (stmt.step()) {
-    users.push(stmt.getAsObject());
-  }
-  stmt.free();
-
-  const courses = [];
-  const stmt2 = db.prepare('SELECT * FROM courses');
-  while (stmt2.step()) {
-    courses.push(stmt2.getAsObject());
-  }
-  stmt2.free();
-
-  return { users, courses };
+  const response = await fetch(`${API_BASE}/api/export`);
+  if (!response.ok) throw new Error('Failed to export database');
+  return response.json();
 };
-
-// Attach to window for console access
-if (typeof window !== 'undefined') {
-  (window as any).exportDatabase = exportDatabase;
-}
